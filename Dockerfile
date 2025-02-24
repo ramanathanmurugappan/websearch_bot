@@ -1,8 +1,5 @@
 # Stage 1: Build dependencies
-FROM selenium/standalone-chrome:latest as chrome
-
-# Stage 2: Build Python dependencies
-FROM python:3.9-slim as builder
+FROM --platform=linux/arm64 python:3.9-slim as builder
 
 # Install build dependencies
 RUN apt-get update && apt-get install -y \
@@ -16,15 +13,20 @@ WORKDIR /install
 COPY requirements.txt .
 RUN pip install --prefix=/install --no-warn-script-location -r requirements.txt
 
-# Stage 3: Final image
-FROM python:3.9-slim
+# Stage 2: Final image
+FROM --platform=linux/arm64 python:3.9-slim
 
-# Copy Chrome and ChromeDriver from Selenium image
-COPY --from=chrome /usr/bin/google-chrome /usr/bin/google-chrome
-COPY --from=chrome /usr/bin/chromedriver /usr/bin/chromedriver
-
-# Install Chrome dependencies
-RUN apt-get update && apt-get install -y \
+# Install Chrome and dependencies
+RUN apt-get update && \
+    apt-get install -y wget gnupg2 && \
+    echo "deb http://deb.debian.org/debian/ bookworm main contrib non-free" > /etc/apt/sources.list.d/debian.list && \
+    echo "deb http://deb.debian.org/debian-security/ bookworm-security main contrib non-free" >> /etc/apt/sources.list.d/debian.list && \
+    echo "deb http://deb.debian.org/debian/ bookworm-updates main contrib non-free" >> /etc/apt/sources.list.d/debian.list && \
+    apt-get update && \
+    apt-get install -y \
+    chromium \
+    chromium-driver \
+    xvfb \
     libnss3 \
     libglib2.0-0 \
     libx11-6 \
@@ -38,11 +40,9 @@ RUN apt-get update && apt-get install -y \
     libxi6 \
     libxrandr2 \
     libxrender1 \
-    libxss1 \
     libxtst6 \
     libgbm1 \
     libasound2 \
-    xvfb \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy Python packages from builder
@@ -58,7 +58,7 @@ ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     STREAMLIT_SERVER_PORT=8501 \
     STREAMLIT_SERVER_ADDRESS=0.0.0.0 \
-    CHROME_BIN=/usr/bin/google-chrome \
+    CHROME_BIN=/usr/bin/chromium \
     DISPLAY=:99
 
 # Expose Streamlit port
