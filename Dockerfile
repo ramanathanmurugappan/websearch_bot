@@ -1,5 +1,5 @@
 # Stage 1: Build dependencies
-FROM --platform=linux/arm64 python:3.9-slim as builder
+FROM --platform=linux/arm64 python:3.9-slim-bullseye as builder
 
 # Install build dependencies
 RUN apt-get update && apt-get install -y \
@@ -14,16 +14,17 @@ COPY requirements.txt .
 RUN pip install --prefix=/install --no-warn-script-location -r requirements.txt
 
 # Stage 2: Final image
-FROM --platform=linux/arm64 python:3.9-slim
+FROM --platform=linux/arm64 python:3.9-slim-bullseye
 
-# Install Chrome and dependencies
+# Configure apt to retry downloads and use bullseye
+RUN echo 'Acquire::Retries "5";' > /etc/apt/apt.conf.d/80-retries && \
+    echo "deb http://deb.debian.org/debian bullseye main contrib non-free" > /etc/apt/sources.list && \
+    echo "deb http://security.debian.org/debian-security bullseye-security main contrib non-free" >> /etc/apt/sources.list && \
+    echo "deb http://deb.debian.org/debian bullseye-updates main contrib non-free" >> /etc/apt/sources.list
+
+# Install Chrome and dependencies with retries
 RUN apt-get update && \
-    apt-get install -y wget gnupg2 && \
-    echo "deb http://deb.debian.org/debian/ bookworm main contrib non-free" > /etc/apt/sources.list.d/debian.list && \
-    echo "deb http://deb.debian.org/debian-security/ bookworm-security main contrib non-free" >> /etc/apt/sources.list.d/debian.list && \
-    echo "deb http://deb.debian.org/debian/ bookworm-updates main contrib non-free" >> /etc/apt/sources.list.d/debian.list && \
-    apt-get update && \
-    apt-get install -y \
+    apt-get install -y --no-install-recommends \
     chromium \
     chromium-driver \
     xvfb \
