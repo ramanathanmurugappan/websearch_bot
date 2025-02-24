@@ -1,0 +1,12 @@
+version: '3'
+services:
+  websearch_bot:
+    build: .
+    ports:
+      - "8501:8501"
+    environment:
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      - GEMINI_MODEL=gemini-2.0-flash
+    volumes:
+      - .:/app
+    restart: unless-stopped
