@@ -2,10 +2,12 @@
 FROM python:3.9-slim as builder
 
 # Install build dependencies
-RUN apt-get update && apt-get install -y \
+RUN apt-get clean && \
+    rm -rf /var/lib/apt/lists/* && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends \
     gcc \
-    python3-dev \
-    && rm -rf /var/lib/apt/lists/*
+    python3-dev
 
 WORKDIR /install
 
@@ -16,8 +18,11 @@ RUN pip install --prefix=/install --no-warn-script-location -r requirements.txt
 # Stage 2: Final image
 FROM python:3.9-slim
 
-# Install Chromium and its dependencies
-RUN apt-get update && apt-get install -y \
+# Install Chrome and its dependencies
+RUN apt-get clean && \
+    rm -rf /var/lib/apt/lists/* && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends \
     chromium \
     chromium-driver \
     xvfb \
