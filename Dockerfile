@@ -29,8 +29,16 @@ ENV PYTHONUNBUFFERED=1 \
 # Install additional Python packages
 RUN pip install streamlit
 
+# Create a script to handle Xvfb startup
+RUN echo '#!/bin/bash\n\
+rm -f /tmp/.X99-lock\n\
+Xvfb :99 -screen 0 1024x768x16 &\n\
+sleep 1\n\
+streamlit run app.py' > /app/start.sh && \
+    chmod +x /app/start.sh
+
 # Expose Streamlit port
 EXPOSE 8501
 
-# Start Xvfb and run the application
-CMD Xvfb :99 -screen 0 1024x768x16 & streamlit run app.py
+# Use the startup script
+CMD ["/app/start.sh"]
