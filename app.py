@@ -9,6 +9,7 @@ from PIL import Image
 from io import BytesIO
 from config import *
 import scraper
+import os
 
 # Initialize Gemini API
 genai.configure(api_key=GOOGLE_API_KEY)
@@ -20,6 +21,7 @@ def setup_webdriver():
     options = Options()
     for option in CHROME_OPTIONS:
         options.add_argument(option)
+    options.binary_location = os.getenv('CHROME_BIN', '/usr/bin/google-chrome')
     service = Service(ChromeDriverManager().install())
     return webdriver.Chrome(service=service, options=options)
 
