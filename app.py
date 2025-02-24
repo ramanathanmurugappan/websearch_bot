@@ -21,8 +21,8 @@ def setup_webdriver():
     options = Options()
     for option in CHROME_OPTIONS:
         options.add_argument(option)
-    options.binary_location = os.getenv('CHROME_BIN', '/usr/bin/google-chrome')
-    service = Service(ChromeDriverManager().install())
+    options.binary_location = os.getenv('CHROME_BIN', '/usr/bin/chromium')
+    service = Service('/usr/bin/chromedriver')
     return webdriver.Chrome(service=service, options=options)
 
 def get_webpage_text(url: str, max_pages: int = 10, max_depth: int = 10, progress_bar=None, status_text=None):
