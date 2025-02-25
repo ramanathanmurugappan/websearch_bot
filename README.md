@@ -1,103 +1,95 @@
-# Web Scraper Bot with Gemini AI
+# Web Search Bot with Gemini AI
 
-A powerful web scraping application that combines web content extraction with Google's Gemini AI to provide intelligent answers to your questions about any webpage or GitHub repository.
+An intelligent web search application powered by Google's Gemini AI (using the Gemini 2.0 Flash model) that helps you search and analyze web content efficiently. Ask questions about any webpage or GitHub repository and get accurate, context-aware answers.
 
 ## Features
 
-- 🌐 Web Scraping: Extract content from any webpage or GitHub repository
-- 🤖 AI-Powered Q&A: Ask questions about the scraped content using Google's Gemini AI
-- 📊 Interactive UI: Built with Streamlit for a seamless user experience
-- 🐳 Docker Support: Easy deployment using Docker
+- 🌐 Smart Web Search: Search and analyze content from any webpage or GitHub repository
+- 🤖 AI-Powered Q&A: Get intelligent answers using Gemini 2.0 Flash model
+- 📊 User-Friendly Interface: Built with Streamlit for easy interaction
+- 🐳 Docker Support: Simple deployment with Docker
 
-## Prerequisites
+## Requirements
 
-- Python 3.9 or higher
-- Docker (optional)
-- Google API Key for Gemini AI
+- Google API Key (with access to Gemini 2.0 Flash model)
+- Python 3.9 or higher (for local installation)
+- Docker (optional, for container deployment)
 
-## Installation
+## Quick Start Guide
 
-### Local Setup
+### Option 1: Direct Download and Setup
 
-1. Clone the repository:
-```bash
-git clone https://github.com/yourusername/Web_Scraper_bot.git
-cd Web_Scraper_bot
-```
+1. **Clone the Repository**
+   ```bash
+   git clone https://github.com/ramanathanmurugappan/websearch_bot.git
+   cd websearch_bot
+   ```
 
-2. Install dependencies:
-```bash
-pip install -r requirements.txt
-```
+2. **Install Dependencies**
+   ```bash
+   pip install -r requirements.txt
+   ```
 
-3. Set up environment variables:
-```bash
-export GOOGLE_API_KEY=your_api_key_here
-export GEMINI_MODEL=gemini-2.0-flash
-```
+3. **Set up Google API Key**
+   - Get your Google API key from [Google AI Studio](https://makersuite.google.com/app/apikey)
+   - Set it as an environment variable:
+     ```bash
+     export GOOGLE_API_KEY=your_api_key_here
+     export GEMINI_MODEL=gemini-2.0-flash    # The model we're using
+     ```
 
-4. Run the application:
-```bash
-streamlit run app.py
-```
+4. **Run the Application**
+   ```bash
+   streamlit run app.py
+   ```
+   The app will open in your default web browser at `http://localhost:8501`
 
-### Docker Setup
+### Option 2: Docker Setup
 
-1. Build the Docker image:
-```bash
-docker build -t web-scraper-bot .
-```
+1. **Pull the Docker Image**
+   ```bash
+   docker pull ramanathanmurugappan/websearch_bot
+   ```
 
-2. Run the container:
-```bash
-docker run -p 8501:8501 \
-  -e GOOGLE_API_KEY=your_api_key_here \
-  -e GEMINI_MODEL=gemini-2.0-flash \
-  web-scraper-bot
-```
+2. **Run with Docker**
+   ```bash
+   docker run -p 8501:8501 \
+     -e GOOGLE_API_KEY=your_api_key_here \
+     -e GEMINI_MODEL=gemini-2.0-flash \
+     ramanathanmurugappan/websearch_bot
+   ```
 
-## Usage
+## How to Use
 
-1. Access the application at `http://localhost:8501`
-2. Enter a URL to scrape (webpage or GitHub repository)
-3. Wait for the content to be extracted
-4. Ask questions about the scraped content
-5. Get AI-powered answers based on the content
+1. **Start the Application**
+   - The web interface will open in your browser
+   - If not, go to `http://localhost:8501`
 
-## Project Structure
+2. **Enter a URL**
+   - Paste any webpage URL or GitHub repository URL
+   - Click "Search" to analyze the content
 
-```
-Web_Scraper_bot/
-├── app.py              # Main Streamlit application
-├── scraper.py         # Web scraping functionality
-├── test_scraper.py    # Unit tests
-├── requirements.txt   # Python dependencies
-├── Dockerfile        # Docker configuration
-└── .dockerignore    # Docker ignore rules
-```
+3. **Ask Questions**
+   - Type your question about the webpage content
+   - The AI will provide relevant answers based on the content using Gemini 2.0 Flash
 
-## Dependencies
+4. **View Results**
+   - See the AI-generated response
+   - View relevant snippets from the source content
 
-- streamlit==1.32.0
-- google-generativeai==0.3.2
-- beautifulsoup4==4.12.3
-- requests==2.31.0
-- urllib3==2.2.0
+## Troubleshooting
 
-## Contributing
+- **API Key Issues**: Make sure your Google API key is correctly set and has access to Gemini 2.0 Flash model
+- **Connection Errors**: Check your internet connection and the validity of the URL
+- **Docker Issues**: Ensure Docker is running and ports are not in use
+- **Model Issues**: Verify that GEMINI_MODEL is set to 'gemini-2.0-flash'
 
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
+## Support
+
+For issues or questions:
+1. Open an issue on [GitHub](https://github.com/ramanathanmurugappan/websearch_bot/issues)
+2. Check existing issues for solutions
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## Acknowledgments
-
-- Google Gemini AI for providing the question-answering capabilities
-- Streamlit for the amazing web framework
-- BeautifulSoup4 for web scraping functionality
+MIT License - Feel free to use and modify as needed
