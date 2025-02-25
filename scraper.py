@@ -15,19 +15,26 @@ def scrape_url_to_json(url, max_pages=10, max_depth=10, progress_callback=None):
     Returns:
         dict: Scraped data as a JSON-compatible dictionary, or None if failed
     """
+    # print(f"\n[DEBUG] Starting scrape of URL: {url}")
+    # print(f"[DEBUG] Max pages: {max_pages}, Max depth: {max_depth}")
     
     # Website scraping helper
     def _scrape_website(start_url):
         def extract_links_and_content(url, current_depth):
+            # print(f"[DEBUG] Extracting content from: {url} at depth {current_depth}")
             if current_depth > max_depth or len(visited) >= max_pages:
+                # print(f"[DEBUG] Reached limit - depth: {current_depth}, visited pages: {len(visited)}")
                 return None
             
             try:
+                # print(f"[DEBUG] Sending GET request to: {url}")
                 response = requests.get(url, timeout=10)
                 if response.status_code != 200:
+                    # print(f"[DEBUG] Failed to get URL {url} - Status code: {response.status_code}")
                     return None
                     
                 soup = BeautifulSoup(response.content, 'html.parser')
+                # print(f"[DEBUG] Successfully parsed HTML for: {url}")
                 
                 content = {
                     "title": soup.title.string if soup.title else "No title",
@@ -36,24 +43,32 @@ def scrape_url_to_json(url, max_pages=10, max_depth=10, progress_callback=None):
                     "links": []
                 }
                 
+                # print(f"[DEBUG] Found title: {content['title']}")
+                # print(f"[DEBUG] Text length: {len(content['text'])} characters")
+                
                 for a_tag in soup.find_all('a', href=True):
                     full_url = urljoin(url, a_tag['href'])
                     if full_url not in visited:
                         content["links"].append(full_url)
                 
+                # print(f"[DEBUG] Found {len(content['links'])} new links")
                 return content
                 
-            except Exception:
+            except Exception as e:
+                # print(f"[DEBUG] Error processing {url}: {str(e)}")
                 return None
 
         visited = set()
         structure = {}
         to_visit = [(start_url, 0)]
+        # print(f"[DEBUG] Starting website crawl from: {start_url}")
 
         while to_visit and len(visited) < max_pages:
             current_url, depth = to_visit.pop(0)
+            # print(f"\n[DEBUG] Processing URL: {current_url} at depth {depth}")
             
             if current_url in visited:
+                # print(f"[DEBUG] Skipping already visited URL: {current_url}")
                 continue
                 
             page_data = extract_links_and_content(current_url, depth)
@@ -61,15 +76,23 @@ def scrape_url_to_json(url, max_pages=10, max_depth=10, progress_callback=None):
             if page_data:
                 visited.add(current_url)
                 structure[current_url] = page_data
+                # print(f"[DEBUG] Added content for: {current_url}")
                 
                 # Update progress
                 if progress_callback:
-                    progress_callback(len(visited), max_pages)
+                    try:
+                        # print(f"[DEBUG] Updating progress: {len(visited)}/{max_pages}")
+                        progress_callback(len(visited), max_pages)
+                    except Exception as e:
+                        # print(f"[DEBUG] Error in progress callback: {str(e)}")
+                        pass
                 
                 for link in page_data["links"]:
                     if link not in visited and len(visited) < max_pages:
                         to_visit.append((link, depth + 1))
+                        # print(f"[DEBUG] Added to queue: {link}")
 
+        # print(f"[DEBUG] Finished website crawl. Visited {len(visited)} pages")
         return structure
 
     # GitHub repo scraping helper
@@ -82,8 +105,10 @@ def scrape_url_to_json(url, max_pages=10, max_depth=10, progress_callback=None):
         def scrape_contents(api_url, total_count=None):
             nonlocal items_processed, total_items
             try:
+                # print(f"[DEBUG] Sending GET request to GitHub API: {api_url}")
                 response = requests.get(api_url)
                 if response.status_code != 200:
+                    # print(f"[DEBUG] Failed to get GitHub API {api_url} - Status code: {response.status_code}")
                     return None
 
                 contents = response.json()
@@ -98,7 +123,12 @@ def scrape_url_to_json(url, max_pages=10, max_depth=10, progress_callback=None):
                     
                     # Update progress
                     if progress_callback and total_items > 0:
-                        progress_callback(items_processed, total_items)
+                        try:
+                            # print(f"[DEBUG] Updating progress: {items_processed}/{total_items}")
+                            progress_callback(items_processed, total_items)
+                        except Exception as e:
+                            # print(f"[DEBUG] Error in progress callback: {str(e)}")
+                            pass
 
                     if item["type"] == "file":
                         skip_content = (any(item_name.endswith(ext) for ext in skip_content_extensions) or 
@@ -109,6 +139,7 @@ def scrape_url_to_json(url, max_pages=10, max_depth=10, progress_callback=None):
                         else:
                             file_url = item["download_url"]
                             if file_url:
+                                # print(f"[DEBUG] Downloading file from: {file_url}")
                                 file_response = requests.get(file_url)
                                 try:
                                     content_str = file_response.content.decode("utf-8")
@@ -131,7 +162,8 @@ def scrape_url_to_json(url, max_pages=10, max_depth=10, progress_callback=None):
 
                 return structure if structure else None
 
-            except requests.RequestException:
+            except requests.RequestException as e:
+                # print(f"[DEBUG] Error processing GitHub API {api_url}: {str(e)}")
                 return None
 
         if repo_url.startswith("https://github.com/"):
@@ -142,13 +174,14 @@ def scrape_url_to_json(url, max_pages=10, max_depth=10, progress_callback=None):
         
         return scrape_contents(api_url)
 
-    # Main logic
     try:
+        # Start scraping based on URL type
         if "github.com" in url.lower():
+            # print("[DEBUG] Detected GitHub repository URL")
             return _scrape_repo(url)
         else:
+            # print("[DEBUG] Processing as regular website URL")
             return _scrape_website(url)
-            
     except Exception as e:
-        print(f"Error processing URL {url}: {str(e)}")
+        # print(f"[DEBUG] Top-level error: {str(e)}")
         return None

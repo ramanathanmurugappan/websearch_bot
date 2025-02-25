@@ -1,107 +1,104 @@
 import streamlit as st
 import google.generativeai as genai
-from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.chrome.options import Options
-from webdriver_manager.chrome import ChromeDriverManager
-import base64
-from PIL import Image
-from io import BytesIO
-from config import *
 import scraper
 import os
 
-# Initialize Gemini API
-genai.configure(api_key=GOOGLE_API_KEY)
-model = genai.GenerativeModel(GEMINI_MODEL)
+# === API Initialization ===
+genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
+model = genai.GenerativeModel(os.getenv("GEMINI_MODEL"))
 
-@st.cache_resource
-def setup_webdriver():
-    """Initialize and return a selenium webdriver with configured options"""
-    options = Options()
-    for option in CHROME_OPTIONS:
-        options.add_argument(option)
-    options.binary_location = os.getenv('CHROME_BIN', '/usr/bin/chromium')
-    service = Service('/usr/bin/chromedriver')
-    return webdriver.Chrome(service=service, options=options)
-
-def get_webpage_text(url: str, max_pages: int = 10, max_depth: int = 10, progress_bar=None, status_text=None):
-    """Extract content from webpage as JSON with progress updates"""
-    def update_progress(current, total):
+# === Web Scraping Functions ===
+def get_webpage_text(url: str, max_pages: int = 10, max_depth: int = 10, progress_bar=None, status_text=None) -> dict:
+    """Extract content from webpage as JSON with progress updates."""
+    def update_progress(current: int, total: int) -> None:
         if progress_bar and status_text:
             progress = min(current / total, 1.0)
             progress_bar.progress(progress)
             status_text.text(f"Scraped {current} of {total} items")
 
     try:
-        data = scraper.scrape_url_to_json(url, max_pages=max_pages, max_depth=max_depth, progress_callback=update_progress)
+        data = scraper.scrape_url_to_json(
+            url, 
+            max_pages=max_pages, 
+            max_depth=max_depth, 
+            progress_callback=update_progress
+        )
         return data if data else {}
     except Exception as e:
         st.error(f"Error fetching content: {str(e)}")
         return {}
 
-def get_webpage_screenshot(url: str) -> str:
-    """Capture webpage screenshot and return as base64 string"""
-    try:
-        driver = setup_webdriver()
-        driver.get(url)
-        screenshot = driver.get_screenshot_as_png()
-        img = Image.open(BytesIO(screenshot))
-        buffered = BytesIO()
-        img.save(buffered, format="PNG")
-        return base64.b64encode(buffered.getvalue()).decode()
-    except Exception as e:
-        st.error(f"Error capturing screenshot: {str(e)}")
-        return ""
-
+# === AI Model Functions ===
 def get_answer_from_gemini(question: str, context: dict) -> str:
     """Get answer from Gemini model"""
     try:
-        context_text = str(context) if isinstance(context, dict) else context
-        prompt = f"""Based on this documentation from the Gemini API website, 
-        answer this question: {question}
-        If you can't find a specific number in the content, please say so.
         
-        Documentation text:
+        context_text = str(context) if isinstance(context, dict) else context
+
+        prompt = f"""Based on the scraped webpage content,
+        answer this question: {question}
+        If you can't find a specific answer in the content, please say so.
+
+        Webpage content:
         {context_text[:80000]}"""
         
         response = model.generate_content(prompt)
-        return response.text
+        
+        # Extract text from response
+        try:
+            if hasattr(response, 'candidates') and response.candidates:
+                candidate = response.candidates[0]
+                if hasattr(candidate, 'content') and candidate.content:
+                    content = candidate.content
+                    if hasattr(content, 'parts') and content.parts:
+                        text = content.parts[0].text
+                        return text.strip()
+            
+            # Fallback to response.text if available
+            if hasattr(response, 'text'):
+                return response.text.strip()
+
+            return str(response)
+            
+        except Exception as e:
+            return str(response)
+            
     except Exception as e:
         return f"Error generating answer: {str(e)}"
 
-# UI Setup
+# === Streamlit UI Setup ===
 st.set_page_config(page_title="Web Content Q&A", layout="wide")
 
-# Custom styling
+# Custom CSS styling
 st.markdown("""
     <style>
     .stApp { margin: 0; padding: 0; }
     .main .block-container { padding: 1rem; max-width: 100%; }
-    .webpage-view {
+    .content-view {
         background: white;
         border-radius: 5px;
-        overflow: hidden;
+        padding: 10px;
+        overflow: auto;
+        max-height: 500px;
     }
-    .webpage-view img { width: 100%; height: auto; }
     </style>
 """, unsafe_allow_html=True)
 
-# Initialize session state variables
+# === Session State Initialization ===
 if 'current_url' not in st.session_state:
     st.session_state.current_url = ""
 if 'current_content' not in st.session_state:
     st.session_state.current_content = {}
-if 'current_screenshot' not in st.session_state:
-    st.session_state.current_screenshot = ""
 
-# Main UI Layout
+# === Main UI Layout ===
 left_col, right_col = st.columns([1, 1])
 
+# === Left Column: Input and Q&A ===
 with left_col:
     st.title("Web Content Q&A Tool")
-    url = st.text_input("Enter URL:", key="url_input")
     
+    # URL input and scraping controls
+    url = st.text_input("Enter URL:", key="url_input")
     max_pages = st.number_input("Maximum pages to scrape", min_value=1, value=10, step=1)
     max_depth = st.number_input("Maximum depth to scrape", min_value=1, value=10, step=1)
     
@@ -109,24 +106,32 @@ with left_col:
     progress_container = st.empty()
     status_container = st.empty()
     
+    # Handle URL submission and scraping
     if url and url != st.session_state.current_url:
-        with st.spinner("Initializing scraping..."):
+        with st.spinner("Scraping the content..."):
             progress_bar = progress_container.progress(0)
             status_text = status_container.text("Starting...")
             
-            text_content = get_webpage_text(url, max_pages=max_pages, max_depth=max_depth, 
-                                          progress_bar=progress_bar, status_text=status_text)
-            screenshot = get_webpage_screenshot(url)
+            text_content = get_webpage_text(
+                url, 
+                max_pages=max_pages, 
+                max_depth=max_depth,
+                progress_bar=progress_bar, 
+                status_text=status_text
+            )
             
             if text_content:
                 st.session_state.current_url = url
                 st.session_state.current_content = text_content
-                st.session_state.current_screenshot = screenshot
+                st.success("Content scraped successfully!")
+            else:
+                st.error("No content could be scraped from the URL")
             
-            # Clear progress indicators when done
+            # Clear progress indicators
             progress_container.empty()
             status_container.empty()
     
+    # Question input and answer display
     if st.session_state.current_content:
         question = st.text_input("Ask a question about the webpage:")
         if question:
@@ -134,10 +139,55 @@ with left_col:
                 answer = get_answer_from_gemini(question, st.session_state.current_content)
                 st.write("Answer:", answer)
 
+# === Right Column: Content Display ===
 with right_col:
-    st.subheader("Webpage Preview")
-    if st.session_state.current_screenshot:
-        st.markdown(
-            f'<div class="webpage-view"><img src="data:image/png;base64,{st.session_state.current_screenshot}"/></div>',
-            unsafe_allow_html=True
-        )
+    st.title("Scraped Content")
+    
+    if st.session_state.current_content:
+        st.write("Current URL:", st.session_state.current_url)
+        
+        def display_repo_structure(structure: dict, indent: int = 0) -> None:
+            """Display repository structure with indentation."""
+            for name, data in sorted(structure.items()):  # Sort items alphabetically
+                prefix = "│   " * (indent - 1) + "├── " if indent > 0 else ""
+                
+                if data["type"] == "dir":
+                    st.markdown(f"{prefix}📁 **{name}/**")
+                    if "content" in data:
+                        display_repo_structure(data["content"], indent + 1)
+                else:  # file
+                    if "content" in data:
+                        col1, col2 = st.columns([8, 2])
+                        with col1:
+                            st.markdown(f"{prefix}📄 **{name}**")
+                        with col2:
+                            if st.button("View", key=f"view_{indent}_{name}"):
+                                st.session_state[f"show_content_{indent}_{name}"] = \
+                                    not st.session_state.get(f"show_content_{indent}_{name}", False)
+                        
+                        if st.session_state.get(f"show_content_{indent}_{name}", False):
+                            st.code(data["content"], language=name.split('.')[-1] if '.' in name else None)
+                    else:
+                        st.markdown(f"{prefix}📄 *{name}* (binary or empty file)")
+        
+        # Display content based on type (GitHub repo or regular webpage)
+        if any(isinstance(v, dict) and "type" in v for v in st.session_state.current_content.values()):
+            st.markdown("### Repository Structure")
+            st.markdown("---")
+            display_repo_structure(st.session_state.current_content)
+        else:
+            # Display regular webpage content
+            for url, data in st.session_state.current_content.items():
+                with st.expander(f"Page: {data.get('title', url)}"):
+                    st.write("URL:", url)
+                    if "text" in data:
+                        st.text_area(
+                            "Content:",
+                            value=data["text"][:1000] + "..." if len(data["text"]) > 1000 else data["text"],
+                            height=200,
+                            key=f"content_{url}"
+                        )
+                    if "links" in data:
+                        st.write(f"Found {len(data['links'])} links on this page")
+    else:
+        st.info("Enter a URL on the left to start scraping content")
