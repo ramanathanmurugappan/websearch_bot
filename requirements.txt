@@ -2,7 +2,7 @@
 streamlit>=1.40.0
 
 # LLM – Google Gemini (API only, no web-search API used)
-google-generativeai>=0.7.0
+google-genai>=1.0.0
 
 # HTTP client – modern, supports redirects and timeouts cleanly
 httpx>=0.27.0

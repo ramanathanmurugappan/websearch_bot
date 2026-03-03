@@ -3,14 +3,22 @@ from __future__ import annotations
 
 import logging
 
-import google.generativeai as genai
+from google import genai
 
 from config import settings
 
 logger = logging.getLogger(__name__)
 
-genai.configure(api_key=settings.google_api_key)
-_model = genai.GenerativeModel(settings.gemini_model)
+_client: genai.Client | None = None
+
+
+def _get_client() -> genai.Client:
+    """Return a cached Gemini client, created lazily on first use."""
+    global _client
+    if _client is None:
+        _client = genai.Client(api_key=settings.google_api_key)
+    return _client
+
 
 _PROMPT_TEMPLATE = """\
 You are a helpful assistant. Using ONLY the scraped webpage content provided \
@@ -32,7 +40,10 @@ def answer_question(question: str, context: dict | str) -> str:
         context=context_text[: settings.max_context_chars],
     )
     try:
-        response = _model.generate_content(prompt)
+        response = _get_client().models.generate_content(
+            model=settings.gemini_model,
+            contents=prompt,
+        )
         return response.text.strip()
     except Exception as exc:
         logger.error("Gemini error: %s", exc)
