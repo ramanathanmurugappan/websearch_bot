@@ -16,9 +16,9 @@ venv/
 .venv/
 env/
 
-# Test outputs
+# Tests and test outputs
+tests/
 out/
-tests/out/
 .pytest_cache/
 .coverage
 htmlcov/
