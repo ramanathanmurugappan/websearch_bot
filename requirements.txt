@@ -1,5 +1,18 @@
-streamlit==1.32.0
-google-generativeai==0.3.2
-beautifulsoup4==4.12.3
-requests==2.31.0
-urllib3==2.2.0
+# Web framework
+streamlit>=1.40.0
+
+# LLM – Google Gemini (API only, no web-search API used)
+google-generativeai>=0.7.0
+
+# HTTP client – modern, supports redirects and timeouts cleanly
+httpx>=0.27.0
+
+# HTML parsing and link extraction
+beautifulsoup4>=4.12.3
+lxml>=5.2.0
+
+# Main-content extraction from web pages (no external API)
+trafilatura>=1.9.0
+
+# Environment variable loading
+python-dotenv>=1.0.0

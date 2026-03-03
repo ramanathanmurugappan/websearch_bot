@@ -1,23 +1,22 @@
-# Use Python 3.9 slim image as base
-FROM python:3.9-slim
+# Use Python 3.12 slim as base
+FROM python:3.12-slim
 
-# Set working directory
 WORKDIR /app
 
-# Copy requirements first to leverage Docker cache
-COPY requirements.txt .
+# System libs required by lxml / trafilatura
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libxml2 \
+    libxslt1.1 \
+ && rm -rf /var/lib/apt/lists/*
 
-# Install dependencies
+# Leverage Docker layer cache: install Python deps before copying source
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the rest of the application
 COPY . .
 
-# Expose port 8501 for Streamlit
 EXPOSE 8501
 
-# Set environment variables
 ENV PYTHONUNBUFFERED=1
 
-# Command to run the application
 CMD ["streamlit", "run", "app.py", "--server.address", "0.0.0.0"]
