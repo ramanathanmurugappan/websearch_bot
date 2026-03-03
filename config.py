@@ -17,8 +17,12 @@ logging.basicConfig(
 
 @dataclass
 class Settings:
-    google_api_key: str = field(default_factory=lambda: os.getenv("GOOGLE_API_KEY", ""))
-    gemini_model: str = field(default_factory=lambda: os.getenv("GEMINI_MODEL", "gemini-2.0-flash"))
+    # LiteLLM model string – prefix determines the provider.
+    # GROQ_API_KEY is read directly from the environment by LiteLLM.
+    # Set it in .env for local dev, or as a GitHub Actions secret in CI.
+    groq_model: str = field(
+        default_factory=lambda: os.getenv("GROQ_MODEL", "groq/llama-3.3-70b-versatile")
+    )
     # Maximum characters of scraped content passed to the LLM
     max_context_chars: int = 80_000
     # HTTP request timeout in seconds
