@@ -1,0 +1,90 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "websearch-bot"
+version = "0.1.0"
+description = "Web scraper for websites and GitHub repos; returns context-engineered Markdown."
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10"
+authors = [
+    { name = "Ramana Than Murugappan" },
+]
+keywords = [
+    "web-scraping", "crawl4ai", "github", "llm",
+    "context-engineering", "markdown", "agentic",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Internet :: WWW/HTTP",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Typing :: Typed",
+]
+
+# Core runtime dependencies — the scraper works without LLM features.
+dependencies = [
+    "crawl4ai>=0.7.4",
+    "requests>=2.31.0",
+    "nest_asyncio>=1.6.0",
+]
+
+[project.optional-dependencies]
+# Enable LLM compression and AI overviews (requires a GROQ_API_KEY).
+llm = [
+    "litellm>=1.0.0",
+    "python-dotenv>=1.0.0",
+]
+# Development tools.
+dev = [
+    "litellm>=1.0.0",
+    "python-dotenv>=1.0.0",
+    "pytest>=8.0",
+    "ruff>=0.4",
+    "mypy>=1.10",
+]
+
+[project.urls]
+Homepage   = "https://github.com/ramanathanmurugappan/websearch-bot"
+Repository = "https://github.com/ramanathanmurugappan/websearch-bot"
+"Bug Tracker" = "https://github.com/ramanathanmurugappan/websearch-bot/issues"
+
+# ---------------------------------------------------------------------------
+# Build configuration
+# ---------------------------------------------------------------------------
+
+[tool.hatch.build.targets.wheel]
+# Ship the py.typed marker so type checkers (mypy / pyright) know this
+# package has inline type annotations (PEP 561).
+packages = ["websearch_bot"]
+
+# ---------------------------------------------------------------------------
+# Ruff (linter + formatter — replaces flake8, black, isort)
+# ---------------------------------------------------------------------------
+
+[tool.ruff]
+line-length    = 88
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+ignore = ["E501"]  # line length handled by formatter
+
+[tool.ruff.lint.isort]
+known-first-party = ["websearch_bot"]
+
+# ---------------------------------------------------------------------------
+# Mypy (static type checker)
+# ---------------------------------------------------------------------------
+
+[tool.mypy]
+python_version       = "3.10"
+strict               = false
+ignore_missing_imports = true
