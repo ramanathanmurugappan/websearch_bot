@@ -2,7 +2,7 @@
 
 Fetches the full recursive file tree via ``/git/trees`` and downloads each
 source file from ``raw.githubusercontent.com`` in parallel.  Each file is
-then summarized individually by an LLM (max_workers=2 to stay within free-tier
+then summarized individually by an LLM (max_workers=4 to stay within free-tier
 TPM) and the combined summaries are passed through a final compress pass if
 they still exceed the character budget.
 
@@ -159,7 +159,7 @@ def scrape_github(
 
     Uses the GitHub REST API to retrieve the full recursive file tree, then
     downloads each matching file in parallel.  Each file is summarized
-    individually by :func:`_summarize_file` (max_workers=2) and the combined
+    individually by :func:`_summarize_file` (max_workers=4) and the combined
     summaries are passed through :func:`~websearch_bot._llm.compress_text`
     if they still exceed *max_chars*.
 
@@ -218,14 +218,14 @@ def scrape_github(
             if result:
                 fetched[result[0]] = result[1]
 
-    # Summarize each file individually (max_workers=2 keeps concurrent token
+    # Summarize each file individually (max_workers=4 keeps concurrent token
     # usage within free-tier TPM budget).  Files larger than _MAX_FILE_CHARS
     # are skipped — they are almost always generated artefacts.
     to_summarize = [
         item for item in candidates
         if item["path"] in fetched and len(fetched[item["path"]]) <= _MAX_FILE_CHARS
     ]
-    with ThreadPoolExecutor(max_workers=2) as pool:
+    with ThreadPoolExecutor(max_workers=4) as pool:
         summaries = list(pool.map(
             lambda item: f"### {item['path']}\n\n{_summarize_file(item['path'], fetched[item['path']])}",
             to_summarize,

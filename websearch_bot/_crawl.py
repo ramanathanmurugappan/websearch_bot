@@ -35,6 +35,10 @@ _BROWSER = BrowserConfig(
     extra_args=[
         "--blink-settings=imagesEnabled=false",
         "--disable-remote-fonts",
+        "--disable-background-timer-throttling",
+        "--disable-backgrounding-occluded-windows",
+        "--disable-renderer-backgrounding",
+        "--no-first-run",
     ],
 )
 
@@ -47,7 +51,7 @@ _BASE: dict = dict(
     markdown_generator=DefaultMarkdownGenerator(options={"body_width": 0}),
     scraping_strategy=LXMLWebScrapingStrategy(),
     wait_until="networkidle",  # required for JS-rendered / SPA pages
-    page_timeout=30_000,       # 30 s (default is 60 s)
+    page_timeout=15_000,       # 15 s (default is 60 s)
     wait_for_images=False,
     verbose=False,
 )
@@ -299,7 +303,7 @@ def scrape_website(
                 **_BASE,
                 "wait_until": "domcontentloaded",
                 "remove_overlay_elements": False,
-                "delay_before_return_html": 3.0,
+                "delay_before_return_html": 1.5,
             },
             deep_crawl_strategy=strategy,
         )
@@ -333,7 +337,7 @@ def scrape_many(urls: list[str], max_chars: int = MAX_CHARS) -> str:
             "excluded_tags": ["script", "style"],
             "wait_until": "domcontentloaded",
             "remove_overlay_elements": False,   # JS-rendered sites start hidden
-            "delay_before_return_html": 3.0,    # let hydration complete
+            "delay_before_return_html": 1.5,    # let hydration complete
         }
         raw = _run_sync(_async_crawl_many(urls, CrawlerRunConfig(**cfg)))
         meta: dict = {"source": "batch", "type": "batch_crawl", "urls": urls}
