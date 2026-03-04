@@ -29,28 +29,18 @@ classifiers = [
     "Typing :: Typed",
 ]
 
-# Core runtime dependencies — the scraper works without LLM features.
 dependencies = [
     "crawl4ai>=0.7.4",
     "requests>=2.31.0",
     "nest_asyncio>=1.6.0",
+    "litellm>=1.0.0",
+    "python-dotenv>=1.0.0",
+    "ddgs>=9.0",
 ]
 
 [project.optional-dependencies]
-# Enable LLM compression and AI overviews (requires a GROQ_API_KEY).
-llm = [
-    "litellm>=1.0.0",
-    "python-dotenv>=1.0.0",
-]
-# Enable full web search from a text query (DuckDuckGo, no API key required).
-search = [
-    "ddgs>=9.0",
-]
 # Development tools.
 dev = [
-    "litellm>=1.0.0",
-    "python-dotenv>=1.0.0",
-    "ddgs>=9.0",
     "pytest>=8.0",
     "ruff>=0.4",
     "mypy>=1.10",

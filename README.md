@@ -41,24 +41,8 @@ LLM post-processing is powered entirely by [Groq's free-tier models](https://con
 
 ## Install
 
-**Core** (scraping only, no LLM):
 ```bash
 pip install websearch-bot
-```
-
-**With web search** (DuckDuckGo, no API key):
-```bash
-pip install "websearch-bot[search]"
-```
-
-**With LLM compression + AI overviews** (requires a free [Groq API key](https://console.groq.com)):
-```bash
-pip install "websearch-bot[llm]"
-```
-
-**Everything**:
-```bash
-pip install "websearch-bot[search,llm]"
 ```
 
 **Development**:
