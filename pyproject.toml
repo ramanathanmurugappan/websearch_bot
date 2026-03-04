@@ -42,10 +42,15 @@ llm = [
     "litellm>=1.0.0",
     "python-dotenv>=1.0.0",
 ]
+# Enable full web search from a text query (DuckDuckGo, no API key required).
+search = [
+    "ddgs>=9.0",
+]
 # Development tools.
 dev = [
     "litellm>=1.0.0",
     "python-dotenv>=1.0.0",
+    "ddgs>=9.0",
     "pytest>=8.0",
     "ruff>=0.4",
     "mypy>=1.10",

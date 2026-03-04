@@ -1,4 +1,4 @@
-"""websearch_bot — web scraper for websites and GitHub repositories.
+"""websearch_bot — web scraper and search tool for websites and GitHub repositories.
 
 Scrapes content via ``crawl4ai`` (headless Chromium) for regular websites
 and via the GitHub REST API for repository URLs.  All results are returned
@@ -8,7 +8,7 @@ budget.
 
 Quickstart::
 
-    from websearch_bot import scrape_website
+    from websearch_bot import scrape_website, search_web
 
     # Single website — deep crawl up to 5 pages
     text = scrape_website("https://docs.python.org/3/")
@@ -18,6 +18,9 @@ Quickstart::
 
     # Multiple URLs in one call — each routed automatically, batched in parallel
     text = scrape_website(["https://example.com", "https://github.com/owner/repo"])
+
+    # Full web search from a text query — discovers and scrapes top results
+    text = search_web("how to install crawl4ai", max_results=5)
 
 Environment variables::
 
@@ -34,9 +37,10 @@ from concurrent.futures import ThreadPoolExecutor
 from ._llm import MAX_CHARS
 from ._crawl import scrape_website as _scrape_one, scrape_many as _scrape_many
 from ._github import scrape_github as _scrape_github
+from ._search import search_web
 
 __version__ = "0.1.0"
-__all__ = ["scrape_website", "MAX_CHARS", "__version__"]
+__all__ = ["scrape_website", "search_web", "MAX_CHARS", "__version__"]
 
 # ---------------------------------------------------------------------------
 # URL routing helpers

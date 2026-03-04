@@ -9,9 +9,12 @@ LLM post-processing is powered entirely by [Groq's free-tier models](https://con
 ```
  AI Agent / Orchestrator
  (LangGraph · LangChain · CrewAI · raw tool call)
-        │  tool call: scrape_website(url)
+        │  tool call: scrape_website(url) | search_web(query)
         ▼
   websearch-bot
+        │
+        ├─► DuckDuckGo (free search API)   ← search_web() only
+        │         top-N URLs
         │
         ├─► crawl4ai (headless Chromium)   ← free, open-source
         │         raw Markdown
@@ -28,6 +31,7 @@ LLM post-processing is powered entirely by [Groq's free-tier models](https://con
 
 ## Features
 
+- **Full web search** — `search_web(query)` searches DuckDuckGo (no API key) and scrapes the top results
 - **Single URL** — deep-crawls any public website via headless Chromium (crawl4ai)
 - **GitHub repos** — fetches actual source files via the GitHub REST API (not the rendered page)
 - **Batch URLs** — parallel scrape of multiple URLs in one call; each source is clearly labelled
@@ -42,9 +46,19 @@ LLM post-processing is powered entirely by [Groq's free-tier models](https://con
 pip install websearch-bot
 ```
 
+**With web search** (DuckDuckGo, no API key):
+```bash
+pip install "websearch-bot[search]"
+```
+
 **With LLM compression + AI overviews** (requires a free [Groq API key](https://console.groq.com)):
 ```bash
 pip install "websearch-bot[llm]"
+```
+
+**Everything**:
+```bash
+pip install "websearch-bot[search,llm]"
 ```
 
 **Development**:
@@ -72,7 +86,10 @@ GITHUB_TOKEN=ghp_...
 ## Usage
 
 ```python
-from websearch_bot import scrape_website
+from websearch_bot import scrape_website, search_web
+
+# Full web search from a text query — searches DuckDuckGo, scrapes top results
+text = search_web("how to use crawl4ai for scraping", max_results=5)
 
 # Single website — deep crawl up to 5 pages
 text = scrape_website("https://docs.python.org/3/")
@@ -95,7 +112,7 @@ text = scrape_website(
 )
 ```
 
-### Parameters
+### `scrape_website` parameters
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|
@@ -103,6 +120,14 @@ text = scrape_website(
 | `max_pages` | `int` | `5` | Max pages to crawl (single-URL deep crawl only) |
 | `max_depth` | `int` | `1` | Max link depth from seed URL (single-URL only) |
 | `keywords` | `list[str] \| None` | `None` | Keyword filter for BestFirst relevance scoring |
+| `max_chars` | `int` | `100_000` | Character budget; larger content is LLM-compressed |
+
+### `search_web` parameters
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `query` | `str` | — | Free-text search query |
+| `max_results` | `int` | `5` | Number of DuckDuckGo results to scrape |
 | `max_chars` | `int` | `100_000` | Character budget; larger content is LLM-compressed |
 
 ### Return value
@@ -137,10 +162,10 @@ Returns `""` on complete failure (unreachable URL, invalid GitHub repo, etc.).
 
 ```python
 from langchain_core.tools import tool
-from websearch_bot import scrape_website
+from websearch_bot import scrape_website, search_web
 
 @tool
-def web_search(
+def web_scrape(
     url: str | list[str],
     max_pages: int = 5,
     max_depth: int = 1,
@@ -148,6 +173,11 @@ def web_search(
 ) -> str:
     """Scrape one or more websites or GitHub repos and return their content."""
     return scrape_website(url, max_pages=max_pages, max_depth=max_depth, keywords=keywords)
+
+@tool
+def web_search_tool(query: str, max_results: int = 5) -> str:
+    """Search the web for a query and return scraped content from the top results."""
+    return search_web(query, max_results=max_results)
 ```
 
 ## Project structure
@@ -155,11 +185,12 @@ def web_search(
 ```
 websearch_bot/
 ├── websearch_bot/
-│   ├── __init__.py     # public API: scrape_website, MAX_CHARS
+│   ├── __init__.py     # public API: scrape_website, search_web, MAX_CHARS
 │   ├── _models.py      # Groq model catalog + rate limits
 │   ├── _llm.py         # call_llm, compress_text, summarize_file
 │   ├── _crawl.py       # crawl4ai helpers, wrap_context, finalize
 │   ├── _github.py      # GitHub REST API scraper
+│   ├── _search.py      # DuckDuckGo search → scrape pipeline
 │   └── py.typed        # PEP 561 type marker
 ├── tests/
 │   └── test_websearch.py
