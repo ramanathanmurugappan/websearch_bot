@@ -1,13 +1,10 @@
 """GitHub repository scraper using the GitHub REST API.
 
 Fetches the full recursive file tree via ``/git/trees`` and downloads each
-source file from ``raw.githubusercontent.com`` in parallel.  The combined
-content is then LLM-compressed to fit within the character budget.
-
-Per-file AI summaries are intentionally avoided: they consume one LLM call
-per file, exhausting free-tier rate limits before compression even starts.
-Map-reduce compression on the combined text achieves the same result in far
-fewer calls.
+source file from ``raw.githubusercontent.com`` in parallel.  Each file is
+then summarized individually by an LLM (max_workers=2 to stay within free-tier
+TPM) and the combined summaries are passed through a final compress pass if
+they still exceed the character budget.
 
 Environment:
     GITHUB_TOKEN: Optional personal access token.  When set, the API rate
@@ -26,7 +23,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import requests
 
-from ._llm import MAX_CHARS
+from ._llm import MAX_CHARS, call_llm
 from ._crawl import finalize
 
 __all__ = ["scrape_github"]
@@ -121,6 +118,32 @@ def _fetch_raw(
         return None
 
 
+def _summarize_file(path: str, content: str) -> str:
+    """Return a concise LLM summary of one source file.
+
+    Uses up to _MAX_FILE_CHARS of input and targets ~400 output tokens.
+    Falls back to the first 2 000 chars verbatim if the LLM is unavailable.
+
+    Args:
+        path: Repo-relative file path (used to infer language for the prompt).
+        content: Raw file text.
+
+    Returns:
+        A dense Markdown summary string.
+    """
+    ext = path.rsplit(".", 1)[-1] if "." in path else "txt"
+    summary, _ = call_llm(
+        system=(
+            "You are a code analyst. Summarize this source file concisely: "
+            "purpose, key exports/functions/classes, and important logic. "
+            "Output dense Markdown. No code blocks."
+        ),
+        user=f"`{path}`\n```{ext}\n{content[:_MAX_FILE_CHARS]}\n```",
+        max_tokens=400,
+    )
+    return summary or content[:2_000]
+
+
 # ---------------------------------------------------------------------------
 # Public scraper
 # ---------------------------------------------------------------------------
@@ -135,9 +158,10 @@ def scrape_github(
     """Fetch source files from a public GitHub repository.
 
     Uses the GitHub REST API to retrieve the full recursive file tree, then
-    downloads each matching file in parallel.  All files are concatenated
-    verbatim and passed through :func:`~websearch_bot._llm.compress_text`
-    in a single map-reduce pass to fit within *max_chars*.
+    downloads each matching file in parallel.  Each file is summarized
+    individually by :func:`_summarize_file` (max_workers=2) and the combined
+    summaries are passed through :func:`~websearch_bot._llm.compress_text`
+    if they still exceed *max_chars*.
 
     Args:
         repo_url: Full GitHub repository URL, e.g.
@@ -194,19 +218,24 @@ def scrape_github(
             if result:
                 fetched[result[0]] = result[1]
 
-    # Build the combined document in tree order.
-    # Files larger than _MAX_FILE_CHARS are skipped — they are almost always
-    # generated artefacts (minified bundles, compiled output, etc.).
-    parts = [
-        f"### {item['path']}\n\n```\n{fetched[item['path']]}\n```"
-        for item in candidates
+    # Summarize each file individually (max_workers=2 keeps concurrent token
+    # usage within free-tier TPM budget).  Files larger than _MAX_FILE_CHARS
+    # are skipped — they are almost always generated artefacts.
+    to_summarize = [
+        item for item in candidates
         if item["path"] in fetched and len(fetched[item["path"]]) <= _MAX_FILE_CHARS
     ]
-    raw = "\n\n".join(parts)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        summaries = list(pool.map(
+            lambda item: f"### {item['path']}\n\n{_summarize_file(item['path'], fetched[item['path']])}",
+            to_summarize,
+        ))
+    raw = "\n\n".join(summaries)
     meta: dict = {
         "source": repo_url,
         "type": "github_repo",
         "repo": f"{owner}/{repo}",
         "files_total": len(fetched),
+        "llm_calls": len(to_summarize),  # one call attempted per summarized file
     }
     return finalize(raw, meta, max_chars)

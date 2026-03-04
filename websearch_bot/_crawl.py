@@ -195,6 +195,9 @@ def wrap_context(content: str, meta: dict) -> str:
         ]
     else:
         lines += [f"chars: {chars:,}", f"tokens_est: {_tok(chars)}"]
+        if meta.get("llm_calls", 0) > 0:
+            lines.append(f"llm_calls: {meta.get('llm_calls', 0)}")
+            lines.append(f"llm_compressed: {str(meta.get('llm_compressed', False)).lower()}")
 
     for k, v in meta.items():
         if k in _HANDLED:
@@ -249,11 +252,17 @@ def finalize(raw: str, meta: dict, max_chars: int) -> str:
         A context-engineered Markdown document, or ``""`` if *raw* is empty.
     """
     original_chars = len(raw)
-    content, llm_calls, llm_used = compress_text(raw, max_chars)
+    prior_calls = meta.pop("llm_calls", 0)  # calls made before finalize (e.g. per-file summaries)
+    content, compress_calls, llm_used = compress_text(raw, max_chars)
     if not content.strip():
         return ""
-    if llm_calls > 0:
-        meta.update(original_chars=original_chars, llm_calls=llm_calls, llm_compressed=llm_used)
+    total_calls = prior_calls + compress_calls
+    if total_calls > 0:
+        meta.update(
+            original_chars=original_chars,
+            llm_calls=total_calls,
+            llm_compressed=llm_used or bool(prior_calls),
+        )
     return wrap_context(content, meta)
 
 
