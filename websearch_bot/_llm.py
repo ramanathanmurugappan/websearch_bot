@@ -17,7 +17,6 @@ Example:
 
 from __future__ import annotations
 
-import os
 import warnings
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -31,7 +30,7 @@ except ImportError:
 
 from ._models import FALLBACKS as _FALLBACKS, MODELS as _MODELS_CATALOG, PRIMARY as _PRIMARY
 
-__all__ = ["MAX_CHARS", "MODEL_TPM", "call_llm", "compress_text", "summarize_file"]
+__all__ = ["MAX_CHARS", "call_llm", "compress_text"]
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -95,35 +94,6 @@ def call_llm(
     except Exception:
         pass
     return None, None
-
-
-# ---------------------------------------------------------------------------
-# File summariser
-# ---------------------------------------------------------------------------
-
-
-def summarize_file(path: str, content: str) -> str:
-    """Return an AI summary of a source file, or the full content as a fallback.
-
-    Args:
-        path: File path — used to detect language from the extension.
-        content: Raw file text.
-
-    Returns:
-        A concise Markdown summary, or ``"*(LLM unavailable)*\\n\\n{content}"``
-        when every model in the fallback chain is unavailable.
-    """
-    ext = os.path.splitext(path)[1].lstrip(".")
-    summary, _ = call_llm(
-        system=(
-            "You are a technical code analyst. Given a source file, output a concise "
-            "Markdown summary covering: purpose, key functions/classes/exports, and "
-            "important logic. Be precise, no code blocks."
-        ),
-        user=f"File: `{path}`\n\n```{ext}\n{content}\n```",
-        max_tokens=512,
-    )
-    return summary or f"*(LLM unavailable)*\n\n{content}"
 
 
 # ---------------------------------------------------------------------------

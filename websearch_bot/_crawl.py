@@ -22,7 +22,7 @@ from crawl4ai.markdown_generation_strategy import DefaultMarkdownGenerator
 
 from ._llm import MAX_CHARS, call_llm, compress_text
 
-__all__ = ["scrape_website", "scrape_many", "wrap_context", "finalize"]
+__all__ = ["scrape_website", "scrape_many", "finalize"]
 
 # ---------------------------------------------------------------------------
 # Browser and crawler configuration
@@ -104,11 +104,21 @@ def _run_sync(coro):
         return asyncio.run(coro)
 
 
-async def _async_crawl(url: str, config: CrawlerRunConfig) -> str:
-    """Crawl a single URL (possibly multiple pages) and return joined Markdown."""
+async def _async_crawl(
+    url: str, config: CrawlerRunConfig, fallback: CrawlerRunConfig | None = None
+) -> str:
+    """Crawl a single URL (possibly multiple pages) and return joined Markdown.
+
+    If *fallback* is provided and the primary crawl returns empty content
+    (e.g. networkidle timeout on static sites), retries with the fallback config.
+    """
     async with AsyncWebCrawler(config=_BROWSER) as crawler:
         results = await crawler.arun(url, config=config)
-        return "\n\n".join(_extract_markdown(r) for r in results if r.success)
+        raw = "\n\n".join(_extract_markdown(r) for r in results if r.success)
+        if not raw and fallback is not None:
+            results = await crawler.arun(url, config=fallback)
+            raw = "\n\n".join(_extract_markdown(r) for r in results if r.success)
+        return raw
 
 
 async def _async_crawl_many(urls: list[str], config: CrawlerRunConfig) -> str:
@@ -273,11 +283,18 @@ def scrape_website(
         A context-engineered Markdown document, or ``""`` on failure.
     """
     try:
-        config = CrawlerRunConfig(
-            **_BASE,
-            deep_crawl_strategy=_make_strategy(max_depth, max_pages, keywords),
+        strategy = _make_strategy(max_depth, max_pages, keywords)
+        config = CrawlerRunConfig(**_BASE, deep_crawl_strategy=strategy)
+        fallback = CrawlerRunConfig(
+            **{
+                **_BASE,
+                "wait_until": "domcontentloaded",
+                "remove_overlay_elements": False,
+                "delay_before_return_html": 3.0,
+            },
+            deep_crawl_strategy=strategy,
         )
-        raw = _run_sync(_async_crawl(url, config))
+        raw = _run_sync(_async_crawl(url, config, fallback=fallback))
         meta: dict = {
             "source": url, "type": "website_crawl",
             "max_pages": max_pages, "max_depth": max_depth,
@@ -302,7 +319,14 @@ def scrape_many(urls: list[str], max_chars: int = MAX_CHARS) -> str:
         A context-engineered Markdown document, or ``""`` if every URL fails.
     """
     try:
-        raw = _run_sync(_async_crawl_many(urls, CrawlerRunConfig(**_BASE)))
+        cfg = {
+            **_BASE,
+            "excluded_tags": ["script", "style"],
+            "wait_until": "domcontentloaded",
+            "remove_overlay_elements": False,   # JS-rendered sites start hidden
+            "delay_before_return_html": 3.0,    # let hydration complete
+        }
+        raw = _run_sync(_async_crawl_many(urls, CrawlerRunConfig(**cfg)))
         meta: dict = {"source": "batch", "type": "batch_crawl", "urls": urls}
         return finalize(raw, meta, max_chars)
     except Exception:

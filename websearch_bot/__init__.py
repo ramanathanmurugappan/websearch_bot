@@ -1,26 +1,26 @@
-"""websearch_bot — web scraper and search tool for websites and GitHub repositories.
+"""websearch_bot — one function to search, scrape, or fetch anything.
 
-Scrapes content via ``crawl4ai`` (headless Chromium) for regular websites
-and via the GitHub REST API for repository URLs.  All results are returned
-as context-engineered Markdown with YAML frontmatter, an AI-generated
-overview, and optional LLM compression when content exceeds the character
-budget.
+Auto-detects what to do from the input:
+
+* **Plain text query** → DuckDuckGo search, scrapes top results.
+* **Single URL** → GitHub REST API (for repo URLs) or headless browser.
+* **List of URLs** → parallel batch scrape, results combined.
 
 Quickstart::
 
-    from websearch_bot import scrape_website, search_web
+    from websearch_bot import search_web
 
-    # Single website — deep crawl up to 5 pages
-    text = scrape_website("https://docs.python.org/3/")
-
-    # GitHub repository — auto-detected from URL
-    code = scrape_website("https://github.com/owner/repo")
-
-    # Multiple URLs in one call — each routed automatically, batched in parallel
-    text = scrape_website(["https://example.com", "https://github.com/owner/repo"])
-
-    # Full web search from a text query — discovers and scrapes top results
+    # Plain text → DDG search + scrape
     text = search_web("how to install crawl4ai", max_results=5)
+
+    # Single URL → auto-routed scraper
+    text = search_web("https://docs.python.org/3/")
+
+    # GitHub repo → REST API scraper
+    text = search_web("https://github.com/owner/repo")
+
+    # List of URLs → parallel batch scrape
+    text = search_web(["https://example.com", "https://github.com/owner/repo"])
 
 Environment variables::
 
@@ -37,30 +37,23 @@ from concurrent.futures import ThreadPoolExecutor
 from ._llm import MAX_CHARS
 from ._crawl import scrape_website as _scrape_one, scrape_many as _scrape_many
 from ._github import scrape_github as _scrape_github
-from ._search import search_web
+from ._search import _ddg_search
 
 __version__ = "0.1.0"
-__all__ = ["scrape_website", "search_web", "MAX_CHARS", "__version__"]
-
-# ---------------------------------------------------------------------------
-# URL routing helpers
-# ---------------------------------------------------------------------------
+__all__ = ["search_web", "MAX_CHARS", "__version__"]
 
 _GITHUB_RE = re.compile(r"https?://github\.com/[^/]+/[^/?#]+(?:\.git)?/?$")
 
 
+def _is_url(s: str) -> bool:
+    return s.startswith("http://") or s.startswith("https://")
+
+
 def _is_github(url: str) -> bool:
-    """Return ``True`` when *url* points to a GitHub repository root."""
     return bool(_GITHUB_RE.match(url))
 
 
 def _scrape_list(urls: list[str], max_chars: int) -> str:
-    """Route each URL in a list to the right scraper and combine results.
-
-    GitHub URLs are scraped with :func:`~websearch_bot._github.scrape_github`
-    (one thread per repo).  All remaining URLs are batch-crawled together via
-    :func:`~websearch_bot._crawl.scrape_many`.
-    """
     github_urls = [u for u in urls if _is_github(u)]
     web_urls    = [u for u in urls if not _is_github(u)]
 
@@ -79,54 +72,52 @@ def _scrape_list(urls: list[str], max_chars: int) -> str:
     return "\n\n".join(parts)
 
 
-# ---------------------------------------------------------------------------
-# Public API
-# ---------------------------------------------------------------------------
-
-
-def scrape_website(
-    url: str | list[str],
+def search_web(
+    query: str | list[str],
+    max_results: int = 5,
     max_pages: int = 5,
     max_depth: int = 1,
     keywords: list[str] | None = None,
     max_chars: int = MAX_CHARS,
 ) -> str:
-    """Scrape one or more URLs and return a context-engineered Markdown document.
+    """Search, scrape, or fetch — one function for everything.
 
-    URL routing is automatic:
+    Auto-detects what to do based on *query*:
 
-    * ``github.com/<owner>/<repo>`` → GitHub REST API scraper
-      (returns actual source files, not the rendered web page).
-    * Any other URL → crawl4ai headless-browser crawler.
-    * List of URLs → each URL routed as above, results combined.
+    * **Plain text** (e.g. ``"python asyncio tutorial"``) → DuckDuckGo search,
+      scrapes the top *max_results* pages and returns combined Markdown.
+    * **Single URL** (starts with ``http://`` or ``https://``) → scrapes that
+      URL; GitHub repo URLs use the REST API, all others use the headless browser.
+    * **List of URLs** → scrapes all URLs in parallel, results combined.
 
     Args:
-        url: A single URL string **or** a list of URL strings.
-        max_pages: Maximum pages to crawl per site.  Applies to single-URL
-            deep crawls only; ignored for batch and GitHub.
-        max_depth: Maximum link depth from the seed URL.  Single-URL only.
-        keywords: Optional relevance filter.  When provided, BestFirst
-            keyword-scoring is used instead of plain BFS.  Single-URL only.
-        max_chars: Character budget (~25 K tokens).  Content over this limit
-            is compressed via map-reduce LLM summarisation.
+        query: Search query string, single URL, or list of URLs.
+        max_results: How many DDG candidates to fetch; LLM picks the best 3 to scrape.
+        max_pages: Max pages to crawl per site (single-URL deep crawl only).
+        max_depth: Max link depth from seed URL (single-URL deep crawl only).
+        keywords: Relevance filter for BestFirst crawl (single-URL only).
+        max_chars: Character budget; content over limit is LLM-compressed.
 
     Returns:
-        A context-engineered Markdown document, or ``""`` on complete failure.
+        Context-engineered Markdown document, or ``""`` on complete failure.
 
     Example:
-        >>> text = scrape_website("https://example.com")
-        >>> text = scrape_website(["https://a.com", "https://github.com/x/y"])
+        >>> text = search_web("python asyncio tutorial")
+        >>> text = search_web("https://example.com")
+        >>> text = search_web(["https://a.com", "https://github.com/x/y"])
     """
-    if isinstance(url, list):
-        return _scrape_list(url, max_chars)
+    if isinstance(query, list):
+        return _scrape_list(query, max_chars)
 
-    if _is_github(url):
-        return _scrape_github(url, max_chars=max_chars)
+    if _is_url(query):
+        if _is_github(query):
+            return _scrape_github(query, max_chars=max_chars)
+        return _scrape_one(
+            query,
+            max_pages=max_pages,
+            max_depth=max_depth,
+            keywords=keywords,
+            max_chars=max_chars,
+        )
 
-    return _scrape_one(
-        url,
-        max_pages=max_pages,
-        max_depth=max_depth,
-        keywords=keywords,
-        max_chars=max_chars,
-    )
+    return _ddg_search(query, max_results=max_results, max_chars=max_chars)
