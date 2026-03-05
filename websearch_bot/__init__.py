@@ -88,6 +88,9 @@ def search_web(
     max_depth: int = 1,
     keywords: list[str] | None = None,
     max_chars: int = MAX_CHARS,
+    css_selector: str | None = None,
+    js_code: list[str] | None = None,
+    wait_for: str | None = None,
 ) -> str:
     """Search, scrape, or fetch — one function for everything.
 
@@ -106,6 +109,12 @@ def search_web(
         max_depth: Max link depth from seed URL (single-URL deep crawl only).
         keywords: Relevance filter for BestFirst crawl (single-URL only).
         max_chars: Character budget; content over limit is LLM-compressed.
+        css_selector: Extract only a specific HTML region, e.g. ``"main"``
+            (single-URL web crawl only).
+        js_code: JavaScript to execute before capture, e.g. to click buttons
+            or trigger lazy loading (single-URL web crawl only).
+        wait_for: CSS (``"css:.loaded"``), XPath, or JS (``"js:()=>..."```)
+            condition to wait for before capture (single-URL web crawl only).
 
     Returns:
         Context-engineered Markdown document, or ``""`` on complete failure.
@@ -113,6 +122,7 @@ def search_web(
     Example:
         >>> text = search_web("python asyncio tutorial")
         >>> text = search_web("https://example.com")
+        >>> text = search_web("https://example.com", css_selector="article")
         >>> text = search_web(["https://a.com", "https://github.com/x/y"])
     """
     if isinstance(query, list):
@@ -127,6 +137,9 @@ def search_web(
             max_depth=max_depth,
             keywords=keywords,
             max_chars=max_chars,
+            css_selector=css_selector,
+            js_code=js_code,
+            wait_for=wait_for,
         )
 
     return _ddg_search(query, max_results=max_results, max_chars=max_chars)

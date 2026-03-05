@@ -14,7 +14,13 @@ from __future__ import annotations
 import asyncio
 from datetime import datetime, timezone
 
-from crawl4ai import AsyncWebCrawler, BrowserConfig, CrawlerRunConfig, SemaphoreDispatcher
+from crawl4ai import (
+    AsyncWebCrawler,
+    BrowserConfig,
+    CrawlerRunConfig,
+    PruningContentFilter,
+    SemaphoreDispatcher,
+)
 from crawl4ai.content_scraping_strategy import LXMLWebScrapingStrategy
 from crawl4ai.deep_crawling import BFSDeepCrawlStrategy, BestFirstCrawlingStrategy
 from crawl4ai.deep_crawling.scorers import KeywordRelevanceScorer
@@ -42,13 +48,22 @@ _BROWSER = BrowserConfig(
     ],
 )
 
+# PruningContentFilter removes low-density/boilerplate text blocks before
+# markdown generation, producing cleaner fit_markdown output for LLMs.
+_CONTENT_FILTER = PruningContentFilter(threshold=0.48, threshold_type="fixed")
+
 # Shared keyword arguments applied to every CrawlerRunConfig instance.
 _BASE: dict = dict(
     word_count_threshold=10,
     excluded_tags=["nav", "footer", "header", "aside", "script", "style"],
     remove_overlay_elements=True,
+    remove_forms=True,                  # strip <form> elements — cleaner output
     exclude_social_media_links=True,
-    markdown_generator=DefaultMarkdownGenerator(options={"body_width": 0}),
+    magic=True,                         # auto-dismiss cookie banners / popups
+    markdown_generator=DefaultMarkdownGenerator(
+        content_filter=_CONTENT_FILTER,
+        options={"body_width": 0},
+    ),
     scraping_strategy=LXMLWebScrapingStrategy(),
     wait_until="networkidle",  # required for JS-rendered / SPA pages
     page_timeout=15_000,       # 15 s (default is 60 s)
@@ -62,9 +77,17 @@ _BASE: dict = dict(
 
 
 def _extract_markdown(result) -> str:
-    """Return the best available Markdown string from a crawl result object."""
+    """Return the best available Markdown string from a crawl result object.
+
+    Preference order:
+    1. ``fit_markdown``  — PruningContentFilter output; boilerplate removed.
+    2. ``markdown_with_citations`` — links preserved as citations.
+    3. ``raw_markdown``  — unfiltered fallback.
+    """
     md = result.markdown
-    return (md.markdown_with_citations or md.raw_markdown) if md else ""
+    if not md:
+        return ""
+    return md.fit_markdown or md.markdown_with_citations or md.raw_markdown or ""
 
 
 def _make_strategy(max_depth: int, max_pages: int, keywords: list[str] | None):
@@ -187,8 +210,8 @@ def wrap_context(content: str, meta: dict) -> str:
     lines.append(f"scraped_at: {now}")
 
     orig = meta.get("original_chars")
-    if orig and orig != chars:
-        # Compression occurred — show before → after stats.
+    if orig:
+        # LLM was used (per-file summaries or map-reduce) — show before → after stats.
         lines += [
             f"original_chars: {orig:,}",
             f"original_tokens: {_tok(orig)}",
@@ -281,6 +304,9 @@ def scrape_website(
     max_depth: int = 1,
     keywords: list[str] | None = None,
     max_chars: int = MAX_CHARS,
+    css_selector: str | None = None,
+    js_code: list[str] | None = None,
+    wait_for: str | None = None,
 ) -> str:
     """Scrape a single website and return a context-engineered Markdown document.
 
@@ -291,19 +317,39 @@ def scrape_website(
         keywords: When provided, BestFirst keyword-relevance scoring is used
             instead of plain BFS traversal.
         max_chars: Character budget; content over this limit is LLM-compressed.
+        css_selector: Optional CSS selector to extract only a specific page
+            region (e.g. ``"main"`` or ``"article.content"``).
+        js_code: Optional list of JavaScript strings to execute before capture
+            (e.g. click buttons, dismiss modals, trigger lazy loading).
+        wait_for: Optional CSS selector (``"css:..."``), XPath (``"xpath:..."``),
+            or JS condition (``"js:() => ..."``) to wait for before capture.
 
     Returns:
         A context-engineered Markdown document, or ``""`` on failure.
     """
     try:
         strategy = _make_strategy(max_depth, max_pages, keywords)
-        config = CrawlerRunConfig(**_BASE, deep_crawl_strategy=strategy)
+
+        # Build per-call overrides from optional args.
+        overrides: dict = {}
+        if css_selector:
+            overrides["css_selector"] = css_selector
+        if js_code:
+            overrides["js_code"] = js_code
+        if wait_for:
+            overrides["wait_for"] = wait_for
+
+        config = CrawlerRunConfig(**{**_BASE, **overrides}, deep_crawl_strategy=strategy)
+
+        # Fallback: domcontentloaded + full-page scroll for lazy-loaded content.
         fallback = CrawlerRunConfig(
             **{
                 **_BASE,
+                **overrides,
                 "wait_until": "domcontentloaded",
                 "remove_overlay_elements": False,
                 "delay_before_return_html": 1.5,
+                "scan_full_page": True,   # scroll to trigger lazy loading
             },
             deep_crawl_strategy=strategy,
         )
@@ -314,6 +360,8 @@ def scrape_website(
         }
         if keywords:
             meta["keywords"] = keywords
+        if css_selector:
+            meta["css_selector"] = css_selector
         return finalize(raw, meta, max_chars)
     except Exception:
         return ""
@@ -338,6 +386,7 @@ def scrape_many(urls: list[str], max_chars: int = MAX_CHARS) -> str:
             "wait_until": "domcontentloaded",
             "remove_overlay_elements": False,   # JS-rendered sites start hidden
             "delay_before_return_html": 1.5,    # let hydration complete
+            "scan_full_page": True,             # scroll to trigger lazy loading
         }
         raw = _run_sync(_async_crawl_many(urls, CrawlerRunConfig(**cfg)))
         meta: dict = {"source": "batch", "type": "batch_crawl", "urls": urls}
