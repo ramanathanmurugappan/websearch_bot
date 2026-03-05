@@ -24,8 +24,17 @@ Quickstart::
 
 Environment variables::
 
-    GROQ_API_KEY          — enables LLM compression and AI overviews (Groq free tier)
-    WEBSEARCH_LLM_MODEL   — override the primary LLM (litellm model string)
+    # Groq (free tier — default provider)
+    GROQ_API_KEY          — enables LLM compression and AI overviews
+    WEBSEARCH_LLM_MODEL   — override the primary LLM (any litellm model string)
+
+    # Additional providers (append to fallback chain when key is present)
+    ANTHROPIC_API_KEY     — Claude models  (e.g. anthropic/claude-haiku-4-5-20251001)
+    OPENAI_API_KEY        — GPT models     (e.g. openai/gpt-4o-mini)
+    GEMINI_API_KEY        — Gemini models  (e.g. gemini/gemini-2.0-flash)
+    MOONSHOT_API_KEY      — Kimi models    (e.g. moonshot/moonshot-v1-8k)
+    HUGGINGFACE_API_KEY   — HF Inference   (e.g. huggingface/meta-llama/Meta-Llama-3.1-8B-Instruct)
+
     GITHUB_TOKEN          — raises GitHub API rate limit from 60 → 5 000 req/hr
 """
 

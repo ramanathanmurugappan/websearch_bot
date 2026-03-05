@@ -1,11 +1,12 @@
 """
-Groq model catalog — sourced from https://api.groq.com/openai/v1/models
-Rate limits   — sourced from https://console.groq.com/docs/rate-limits
-Last updated  : 2026-03-03
+Model catalog and provider registry for websearch-bot LLM routing.
+
+Groq catalog sourced from https://api.groq.com/openai/v1/models
+Rate limits   sourced from https://console.groq.com/docs/rate-limits
+Last updated  : 2026-03-05
 
 Usage:
-    from websearch_bot.models import PRIMARY, FALLBACKS
-    from websearch_bot.models import MODELS  # full catalog
+    from websearch_bot._models import PRIMARY, FALLBACKS, _available_provider_fallbacks
 
 Notes:
     - Groq uses *unified* TPM (no separate input/output token limits).
@@ -13,15 +14,58 @@ Notes:
       require the full ID sent in the API request body; litellm strips the
       provider prefix, so these cannot be used via the standard groq/ prefix
       in litellm — they are listed in the catalog but excluded from FALLBACKS.
-    - FALLBACKS is ordered: TPM desc → TPD desc → RPD desc.
+    - FALLBACKS (Groq) is ordered: TPM desc → TPD desc → RPD desc.
     - Safety/guard, audio, and TTS models are excluded from FALLBACKS.
+    - Non-Groq providers are appended at call time by _available_provider_fallbacks().
 """
 
 import os
 
+__all__ = ["PRIMARY", "FALLBACKS", "MODELS", "PROVIDER_ENV", "PROVIDER_FALLBACK_MODELS"]
+
 # ── Primary model ──────────────────────────────────────────────────────────────
-# Override via WEBSEARCH_LLM_MODEL env var.
+# Override via WEBSEARCH_LLM_MODEL env var (any litellm model string).
 PRIMARY: str = os.getenv("WEBSEARCH_LLM_MODEL", "groq/llama-3.3-70b-versatile")
+
+# ── Non-Groq provider registry ─────────────────────────────────────────────────
+# Maps litellm provider prefix → environment variable that holds the API key.
+PROVIDER_ENV: dict[str, str] = {
+    "anthropic":   "ANTHROPIC_API_KEY",   # Claude models
+    "openai":      "OPENAI_API_KEY",      # GPT models
+    "gemini":      "GEMINI_API_KEY",      # Gemini models
+    "moonshot":    "MOONSHOT_API_KEY",    # Kimi native API (also on Groq free tier)
+    "huggingface": "HUGGINGFACE_API_KEY", # HuggingFace Inference API
+}
+
+# Best cheap/fast model per provider — appended to the fallback chain
+# when the corresponding API key is found in the environment.
+PROVIDER_FALLBACK_MODELS: dict[str, list[str]] = {
+    "anthropic":   ["anthropic/claude-haiku-4-5-20251001"],
+    "openai":      ["openai/gpt-4o-mini"],
+    "gemini":      ["gemini/gemini-2.0-flash", "gemini/gemini-1.5-flash"],
+    "moonshot":    ["moonshot/moonshot-v1-8k"],
+    "huggingface": ["huggingface/meta-llama/Meta-Llama-3.1-8B-Instruct"],
+}
+
+
+def _available_provider_fallbacks() -> list[str]:
+    """Return fallback model IDs for every non-Groq provider whose key is set.
+
+    Called at LLM-call time (not import time) so newly-set env vars are picked
+    up without restarting Python.
+
+    Returns:
+        Deduplicated list of litellm model strings in PROVIDER_ENV order.
+    """
+    seen: set[str] = set()
+    result: list[str] = []
+    for prefix, env_var in PROVIDER_ENV.items():
+        if os.getenv(env_var):
+            for model in PROVIDER_FALLBACK_MODELS.get(prefix, []):
+                if model not in seen:
+                    seen.add(model)
+                    result.append(model)
+    return result
 
 # ── Fallback chain ─────────────────────────────────────────────────────────────
 # All Groq free-tier text-generation models (excluding guard/audio/tts and
