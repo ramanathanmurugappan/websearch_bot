@@ -40,8 +40,33 @@ __all__ = ["MAX_CHARS", "PRIMARY", "call_llm", "compress_text"]
 # Constants
 # ---------------------------------------------------------------------------
 
+def _resolve_primary() -> str:
+    """Pick the primary model at startup.
+
+    Priority:
+    1. ``WEBSEARCH_LLM_MODEL`` env var — user-specified model.
+    2. Groq default — when ``GROQ_API_KEY`` is set.
+    3. First model from the first non-Groq provider that has an API key set.
+    4. Groq default as last resort (calls will fail gracefully if no key).
+    """
+    override = os.getenv("WEBSEARCH_LLM_MODEL")
+    if override:
+        return override
+    from ._groq import is_available as _groq_available
+    if _groq_available():
+        return DEFAULT_PRIMARY
+    # Fall through to first available non-Groq provider.
+    from ._models import PROVIDER_ENV, PROVIDER_FALLBACK_MODELS
+    for prefix, env_var in PROVIDER_ENV.items():
+        if os.getenv(env_var):
+            models = PROVIDER_FALLBACK_MODELS.get(prefix, [])
+            if models:
+                return models[0]
+    return DEFAULT_PRIMARY  # no key set anywhere — fail gracefully
+
+
 #: Active primary model — override via ``WEBSEARCH_LLM_MODEL`` env var.
-PRIMARY: str = os.getenv("WEBSEARCH_LLM_MODEL", DEFAULT_PRIMARY)
+PRIMARY: str = _resolve_primary()
 
 #: Character budget (~25 K tokens).  Content above this threshold is
 #: compressed via map-reduce summarisation before being returned.
