@@ -231,11 +231,13 @@ def scrape_github(
             to_summarize,
         ))
     raw = "\n\n".join(summaries)
+    raw_file_chars = sum(len(fetched[item["path"]]) for item in to_summarize)
     meta: dict = {
         "source": repo_url,
         "type": "github_repo",
         "repo": f"{owner}/{repo}",
         "files_total": len(fetched),
         "llm_calls": len(to_summarize),  # one call attempted per summarized file
+        "original_chars": raw_file_chars,  # total raw file content before LLM summaries
     }
     return finalize(raw, meta, max_chars)

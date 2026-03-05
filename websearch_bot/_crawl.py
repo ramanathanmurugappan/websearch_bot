@@ -278,7 +278,9 @@ def finalize(raw: str, meta: dict, max_chars: int) -> str:
     Returns:
         A context-engineered Markdown document, or ``""`` if *raw* is empty.
     """
-    original_chars = len(raw)
+    # Use caller-supplied original_chars (e.g. raw file bytes before per-file LLM
+    # summaries in the GitHub scraper); fall back to len(raw) for other scrapers.
+    original_chars = meta.pop("original_chars", len(raw))
     prior_calls = meta.pop("llm_calls", 0)  # calls made before finalize (e.g. per-file summaries)
     content, compress_calls, llm_used = compress_text(raw, max_chars)
     if not content.strip():
