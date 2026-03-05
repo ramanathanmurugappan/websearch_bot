@@ -11,8 +11,9 @@ import warnings
 
 from pydantic import BaseModel, Field
 
+import websearch_bot._llm as _llm_mod
+
 from ._groq import get_fallbacks as _groq_fallbacks
-from ._llm import PRIMARY as _PRIMARY
 from ._models import _available_provider_fallbacks
 
 __all__: list[str] = []
@@ -89,8 +90,9 @@ def select_urls(query: str, results: list[dict]) -> list[str]:
         litellm.suppress_debug_info = True
         warnings.filterwarnings("ignore", category=RuntimeWarning, module="litellm")
 
+        primary = _llm_mod.PRIMARY
         all_fallbacks = _groq_fallbacks() + _available_provider_fallbacks()
-        all_models = [_PRIMARY] + [m for m in all_fallbacks if m != _PRIMARY]
+        all_models = [primary] + [m for m in all_fallbacks if m != primary]
 
         for model in all_models:
             try:

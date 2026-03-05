@@ -17,6 +17,7 @@ Example:
 
 from __future__ import annotations
 
+import os
 import warnings
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -28,11 +29,9 @@ try:
 except ImportError:
     pass
 
-import os
-
-from ._groq import DEFAULT_PRIMARY, FALLBACK_MODELS as _GROQ_FALLBACKS, MODEL_TPM
-from ._groq import get_fallbacks as _groq_fallbacks
-from ._models import _available_provider_fallbacks
+from ._groq import DEFAULT_PRIMARY, MODEL_TPM, get_fallbacks as _groq_fallbacks
+from ._groq import is_available as _groq_available
+from ._models import PROVIDER_ENV, PROVIDER_FALLBACK_MODELS, _available_provider_fallbacks
 
 __all__ = ["MAX_CHARS", "PRIMARY", "call_llm", "compress_text"]
 
@@ -52,11 +51,8 @@ def _resolve_primary() -> str:
     override = os.getenv("WEBSEARCH_LLM_MODEL")
     if override:
         return override
-    from ._groq import is_available as _groq_available
     if _groq_available():
         return DEFAULT_PRIMARY
-    # Fall through to first available non-Groq provider.
-    from ._models import PROVIDER_ENV, PROVIDER_FALLBACK_MODELS
     for prefix, env_var in PROVIDER_ENV.items():
         if os.getenv(env_var):
             models = PROVIDER_FALLBACK_MODELS.get(prefix, [])
