@@ -20,8 +20,9 @@ import warnings
 from pydantic import BaseModel, Field
 
 from ._crawl import scrape_many
-from ._llm import MAX_CHARS
-from ._models import FALLBACKS as _FALLBACKS, PRIMARY as _PRIMARY
+from ._groq import get_fallbacks as _groq_fallbacks
+from ._llm import MAX_CHARS, PRIMARY as _PRIMARY
+from ._models import _available_provider_fallbacks
 
 __all__: list[str] = []
 
@@ -99,7 +100,8 @@ def _select_urls(query: str, results: list[dict]) -> list[str]:
         litellm.suppress_debug_info = True
         warnings.filterwarnings("ignore", category=RuntimeWarning, module="litellm")
 
-        all_models = [_PRIMARY] + [m for m in _FALLBACKS if m != _PRIMARY]
+        all_fallbacks = _groq_fallbacks() + _available_provider_fallbacks()
+        all_models = [_PRIMARY] + [m for m in all_fallbacks if m != _PRIMARY]
 
         for model in all_models:
             try:

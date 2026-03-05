@@ -28,30 +28,24 @@ try:
 except ImportError:
     pass
 
-from ._models import (
-    FALLBACKS as _FALLBACKS,
-    MODELS as _MODELS_CATALOG,
-    PRIMARY as _PRIMARY,
-    _available_provider_fallbacks,
-)
+import os
 
-__all__ = ["MAX_CHARS", "call_llm", "compress_text"]
+from ._groq import DEFAULT_PRIMARY, FALLBACK_MODELS as _GROQ_FALLBACKS, MODEL_TPM
+from ._groq import get_fallbacks as _groq_fallbacks
+from ._models import _available_provider_fallbacks
+
+__all__ = ["MAX_CHARS", "PRIMARY", "call_llm", "compress_text"]
 
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
 
+#: Active primary model — override via ``WEBSEARCH_LLM_MODEL`` env var.
+PRIMARY: str = os.getenv("WEBSEARCH_LLM_MODEL", DEFAULT_PRIMARY)
+
 #: Character budget (~25 K tokens).  Content above this threshold is
 #: compressed via map-reduce summarisation before being returned.
 MAX_CHARS: int = 100_000
-
-#: litellm model ID → free-tier tokens-per-minute.
-#: Used by :func:`compress_text` to size chunks within the rate budget.
-MODEL_TPM: dict[str, int] = {
-    m["litellm_id"]: (m["tpm"] or 6_000)
-    for m in _MODELS_CATALOG
-    if m.get("litellm_id")
-}
 
 _COMPRESS_SYSTEM = (
     "Summarize the following content concisely, preserving all key facts, "
@@ -85,12 +79,8 @@ def call_llm(
         litellm.suppress_debug_info = True
         warnings.filterwarnings("ignore", category=RuntimeWarning, module="litellm")
 
-        provider_fallbacks = _available_provider_fallbacks()
-        all_models = (
-            [_PRIMARY]
-            + [m for m in _FALLBACKS if m != _PRIMARY]
-            + [m for m in provider_fallbacks if m != _PRIMARY]
-        )
+        all_fallbacks = _groq_fallbacks() + _available_provider_fallbacks()
+        all_models = [PRIMARY] + [m for m in all_fallbacks if m != PRIMARY]
         msgs = [{"role": "system", "content": system}, {"role": "user", "content": user}]
 
         for model in all_models:
@@ -150,8 +140,8 @@ def compress_text(
     # Chunk size = 50 % of the primary model's per-minute token budget.
     # Example: llama-3.3-70b at 12 K TPM → 12 000 × 4 × 0.5 = 24 000 chars/chunk.
     # Non-Groq paid providers have no tight TPM limit; use 30K as a safe default.
-    _default_tpm = 6_000 if _PRIMARY.startswith("groq/") else 30_000
-    tpm = MODEL_TPM.get(_PRIMARY, _default_tpm)
+    _default_tpm = 6_000 if PRIMARY.startswith("groq/") else 30_000
+    tpm = MODEL_TPM.get(PRIMARY, _default_tpm)
     chunk_chars = max(int(tpm * 4 * 0.5), 8_000)
 
     chunks = [text[i: i + chunk_chars] for i in range(0, len(text), chunk_chars)]
